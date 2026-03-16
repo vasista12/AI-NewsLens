@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>NewsLens — AI News Summarizer</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --ink: #0f0e0c; --ink2: #3a3830; --muted: #7a7870;
+      --paper: #faf8f4; --surface: #f2efe8; --border: #e0dbd0;
+      --accent: #c8400a; --tag-bg: #ede9df;
+    }
+    body { font-family: 'DM Sans', sans-serif; background: var(--paper); color: var(--ink); min-height: 100vh; }
+
+    /* NAV */
+    nav { display: flex; align-items: center; justify-content: space-between; padding: 1.1rem 2.5rem; border-bottom: 1px solid var(--border); background: var(--paper); position: sticky; top: 0; z-index: 100; }
+    .logo { font-family: 'Playfair Display', serif; font-size: 1.4rem; font-weight: 700; color: var(--ink); text-decoration: none; }
+    .logo span { color: var(--accent); }
+    .nav-right { display: flex; align-items: center; gap: 12px; }
+    .live-dot { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--muted); font-weight: 500; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: #2e7d52; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+    .nav-badge { font-size: 0.68rem; font-weight: 500; padding: 3px 10px; background: var(--ink); color: var(--paper); border-radius: 20px; letter-spacing: 0.05em; text-transform: uppercase; }
+
+    /* HERO */
+    .hero { max-width: 800px; margin: 0 auto; padding: 3.5rem 2rem 2rem; text-align: center; animation: fadeUp 0.5s ease both; }
+    .eyebrow { font-size: 0.72rem; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); margin-bottom: 1rem; }
+    h1 { font-family: 'Playfair Display', serif; font-size: clamp(2rem, 5vw, 3.2rem); font-weight: 700; line-height: 1.1; letter-spacing: -1px; margin-bottom: 1rem; }
+    h1 em { color: var(--accent); font-style: normal; }
+    .hero-sub { font-size: 1rem; color: var(--muted); font-weight: 300; line-height: 1.7; max-width: 480px; margin: 0 auto; }
+
+    /* CATEGORY TABS */
+    .cat-bar { max-width: 900px; margin: 2rem auto 0; padding: 0 2rem; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; animation: fadeUp 0.6s 0.1s ease both; }
+    .cat-bar::-webkit-scrollbar { display: none; }
+    .cat-btn { padding: 8px 18px; border-radius: 24px; border: 1px solid var(--border); background: white; color: var(--muted); font-size: 0.82rem; font-weight: 500; cursor: pointer; white-space: nowrap; font-family: 'DM Sans', sans-serif; transition: all 0.15s; }
+    .cat-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .cat-btn.active { background: var(--ink); color: white; border-color: var(--ink); }
+
+    /* NEWS FEED */
+    .feed-wrap { max-width: 900px; margin: 2rem auto 4rem; padding: 0 2rem; animation: fadeUp 0.6s 0.15s ease both; }
+    .feed-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
+    .feed-title { font-family: 'Playfair Display', serif; font-size: 1.2rem; font-weight: 700; }
+    .refresh-btn { display: flex; align-items: center; gap: 6px; padding: 7px 14px; border: 1px solid var(--border); border-radius: 8px; background: white; font-size: 0.8rem; color: var(--muted); cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; }
+    .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .refresh-btn.spinning svg { animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* NEWS GRID */
+    .news-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+
+    /* NEWS CARD */
+    .news-card { background: white; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; transition: box-shadow 0.2s, transform 0.2s; animation: fadeUp 0.4s ease both; }
+    .news-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.08); transform: translateY(-2px); }
+    .card-body { padding: 1.25rem; flex: 1; display: flex; flex-direction: column; gap: 10px; }
+    .card-meta { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; }
+    .source-tag { display: flex; align-items: center; gap: 5px; font-size: 0.72rem; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+    .source-icon { width: 14px; height: 14px; border-radius: 3px; background: var(--accent); opacity: 0.7; }
+    .sentiment-tag { font-size: 0.68rem; font-weight: 500; padding: 2px 8px; border-radius: 12px; }
+    .sentiment-tag.Positive { background: #d1f0e0; color: #1a5e38; }
+    .sentiment-tag.Negative { background: #fde8e8; color: #8b1f1f; }
+    .sentiment-tag.Neutral  { background: var(--tag-bg); color: var(--ink2); }
+    .card-title { font-family: 'Playfair Display', serif; font-size: 1rem; font-weight: 700; line-height: 1.3; color: var(--ink); }
+    .card-summary { font-size: 0.85rem; color: var(--ink2); line-height: 1.65; flex: 1; }
+    .card-footer { padding: 0.75rem 1.25rem; border-top: 1px solid var(--border); background: var(--surface); display: flex; align-items: center; justify-content: space-between; }
+    .cat-pill { font-size: 0.7rem; font-weight: 500; padding: 2px 9px; border-radius: 12px; background: var(--tag-bg); color: var(--ink2); }
+    .read-link { font-size: 0.75rem; color: var(--accent); font-weight: 500; text-decoration: none; display: flex; align-items: center; gap: 4px; }
+    .read-link:hover { text-decoration: underline; }
+
+    /* SKELETON LOADER */
+    .skeleton { background: linear-gradient(90deg, var(--surface) 25%, #ebe7de 50%, var(--surface) 75%); background-size: 200% 100%; animation: shimmer 1.2s infinite; border-radius: 6px; }
+    @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+    .skel-card { background: white; border: 1px solid var(--border); border-radius: 14px; padding: 1.25rem; display: flex; flex-direction: column; gap: 10px; min-height: 200px; }
+    .skel-line { height: 12px; width: 100%; }
+    .skel-line.short { width: 60%; }
+    .skel-line.title { height: 18px; width: 90%; }
+    .skel-line.title2 { height: 18px; width: 70%; }
+
+    /* CUSTOM SUMMARIZER */
+    .summarizer-wrap { max-width: 900px; margin: 0 auto 5rem; padding: 0 2rem; }
+    .section-head { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
+    .section-head h2 { font-family: 'Playfair Display', serif; font-size: 1.2rem; font-weight: 700; white-space: nowrap; }
+    .divider { flex: 1; height: 1px; background: var(--border); }
+    .input-panel { background: white; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+    .panel-tabs { display: flex; border-bottom: 1px solid var(--border); }
+    .ptab { flex: 1; padding: 10px; font-size: 0.82rem; font-weight: 500; background: var(--surface); color: var(--muted); border: none; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; }
+    .ptab.active { background: white; color: var(--ink); border-bottom: 2px solid var(--accent); }
+    .tab-body { display: none; padding: 1.25rem; }
+    .tab-body.active { display: block; }
+    textarea, input[type=url] { width: 100%; font-family: 'DM Sans', sans-serif; font-size: 0.9rem; color: var(--ink); border: 1px solid var(--border); border-radius: 8px; padding: 0.9rem 1rem; background: var(--paper); outline: none; transition: border-color 0.2s; line-height: 1.6; }
+    textarea { min-height: 140px; resize: vertical; }
+    textarea:focus, input[type=url]:focus { border-color: var(--accent); }
+    .opts-row { display: flex; align-items: center; gap: 10px; padding: 0.9rem 1.25rem; border-top: 1px solid var(--border); background: var(--surface); flex-wrap: wrap; }
+    .opts-label { font-size: 0.72rem; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; }
+    .pill-grp { display: flex; gap: 5px; }
+    .pill { padding: 4px 13px; border-radius: 20px; font-size: 0.78rem; font-weight: 500; cursor: pointer; border: 1px solid var(--border); background: white; color: var(--muted); font-family: 'DM Sans', sans-serif; transition: all 0.15s; }
+    .pill.active, .pill:hover { background: var(--ink); color: white; border-color: var(--ink); }
+    .go-btn { margin-left: auto; padding: 9px 20px; background: var(--accent); color: white; border: none; border-radius: 7px; font-size: 0.85rem; font-weight: 500; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: background 0.2s; display: flex; align-items: center; gap: 6px; }
+    .go-btn:hover { background: #a8330a; }
+    .go-btn:disabled { background: var(--muted); cursor: not-allowed; }
+
+    /* RESULT */
+    .result-box { margin-top: 1.25rem; background: white; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; display: none; animation: fadeUp 0.35s ease both; }
+    .result-box.show { display: block; }
+    .res-head { padding: 1.25rem 1.5rem 0.75rem; border-bottom: 1px solid var(--border); }
+    .res-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 0.5rem; }
+    .badge { font-size: 0.7rem; font-weight: 500; padding: 2px 9px; border-radius: 12px; background: var(--tag-bg); color: var(--ink2); }
+    .badge.Positive { background: #d1f0e0; color: #1a5e38; }
+    .badge.Negative { background: #fde8e8; color: #8b1f1f; }
+    .res-title { font-family: 'Playfair Display', serif; font-size: 1.2rem; font-weight: 700; line-height: 1.25; }
+    .res-body { padding: 1.25rem 1.5rem; }
+    .sec-label { font-size: 0.68rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.4rem; }
+    .res-summary { font-size: 0.92rem; line-height: 1.75; color: var(--ink2); margin-bottom: 1.25rem; }
+    .kp-list { list-style: none; }
+    .kp-list li { padding: 0.5rem 0; border-bottom: 1px solid var(--border); font-size: 0.88rem; color: var(--ink2); display: flex; gap: 8px; line-height: 1.5; }
+    .kp-list li:last-child { border-bottom: none; }
+    .kp-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); flex-shrink: 0; margin-top: 7px; }
+    .res-footer { padding: 0.75rem 1.5rem; border-top: 1px solid var(--border); background: var(--surface); display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--muted); }
+    .err-msg { margin-top: 1rem; padding: 0.9rem 1.1rem; background: #fde8e8; border: 1px solid #f5c1c1; border-radius: 8px; font-size: 0.85rem; color: #8b1f1f; display: none; }
+    .err-msg.show { display: block; }
+
+    /* FOOTER */
+    footer { border-top: 1px solid var(--border); padding: 1.5rem 2.5rem; display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--muted); }
+
+    /* UTILS */
+    @keyframes fadeUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+    @media(max-width:600px) { nav{padding:1rem 1.25rem;} .hero,.cat-bar,.feed-wrap,.summarizer-wrap{padding-left:1.25rem;padding-right:1.25rem;} footer{flex-direction:column;gap:6px;} }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="#" class="logo">News<span>Lens</span></a>
+  <div class="nav-right">
+    <span class="live-dot"><span class="dot"></span> Live Feed</span>
+    <span class="nav-badge">Powered by Claude</span>
+  </div>
+</nav>
+
+<section class="hero">
+  <p class="eyebrow">AI-Powered News Intelligence</p>
+  <h1>Today's news,<br/><em>instantly understood</em></h1>
+  <p class="hero-sub">Live trending stories from top channels — summarized by Claude AI in real time.</p>
+</section>
+
+<!-- CATEGORY TABS -->
+<div class="cat-bar" id="cat-bar">
+  <button class="cat-btn active" data-cat="general">🌍 Top Stories</button>
+  <button class="cat-btn" data-cat="technology">💻 Technology</button>
+  <button class="cat-btn" data-cat="business">📈 Business</button>
+  <button class="cat-btn" data-cat="sports">⚽ Sports</button>
+  <button class="cat-btn" data-cat="science">🔬 Science</button>
+  <button class="cat-btn" data-cat="health">❤️ Health</button>
+  <button class="cat-btn" data-cat="entertainment">🎬 Entertainment</button>
+</div>
+
+<!-- NEWS FEED -->
+<div class="feed-wrap">
+  <div class="feed-header">
+    <h2 class="feed-title" id="feed-title">Top Stories</h2>
+    <button class="refresh-btn" id="refresh-btn" onclick="loadNews()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+      Refresh
+    </button>
+  </div>
+  <div class="news-grid" id="news-grid">
+    <!-- skeletons -->
+    ${[1,2,3,4,5,6].map(()=>`<div class="skel-card"><div class="skeleton skel-line short"></div><div class="skeleton skel-line title"></div><div class="skeleton skel-line title2"></div><div class="skeleton skel-line"></div><div class="skeleton skel-line"></div><div class="skeleton skel-line short"></div></div>`).join('')}
+  </div>
+  <p id="feed-error" style="display:none;text-align:center;color:var(--muted);font-size:0.85rem;padding:2rem 0;">Could not load news. Make sure the server is running and try refreshing.</p>
+</div>
+
+<!-- CUSTOM SUMMARIZER -->
+<div class="summarizer-wrap">
+  <div class="section-head">
+    <h2>Summarize Any Article</h2>
+    <div class="divider"></div>
+  </div>
+  <div class="input-panel">
+    <div class="panel-tabs">
+      <button class="ptab active" onclick="switchTab('text',this)">Paste Text</button>
+      <button class="ptab" onclick="switchTab('url',this)">From URL</button>
+    </div>
+    <div id="tab-text" class="tab-body active">
+      <textarea id="article-text" placeholder="Paste your full news article here..."></textarea>
+    </div>
+    <div id="tab-url" class="tab-body">
+      <input type="url" id="article-url" placeholder="https://example.com/news-article"/>
+    </div>
+    <div class="opts-row">
+      <span class="opts-label">Length</span>
+      <div class="pill-grp">
+        <button class="pill" onclick="setLen('short',this)">Short</button>
+        <button class="pill active" onclick="setLen('medium',this)">Medium</button>
+        <button class="pill" onclick="setLen('detailed',this)">Detailed</button>
+      </div>
+      <button class="go-btn" onclick="doSummarize()" id="go-btn">
+        <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        Summarize
+      </button>
+    </div>
+  </div>
+  <div class="err-msg" id="err-msg"></div>
+  <div class="result-box" id="result-box">
+    <div class="res-head">
+      <div class="res-meta" id="res-meta"></div>
+      <div class="res-title" id="res-title"></div>
+    </div>
+    <div class="res-body">
+      <p class="sec-label">Summary</p>
+      <p class="res-summary" id="res-summary"></p>
+      <p class="sec-label">Key Points</p>
+      <ul class="kp-list" id="kp-list"></ul>
+    </div>
+    <div class="res-footer">
+      <span id="res-time"></span>
+      <span id="res-readtime"></span>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <span>NewsLens </span>
+  <span id="last-updated">Loading...</span>
+</footer>
+
+<script>
+const API = window.location.origin;
+let activeTab = 'text', activeLen = 'medium', activeCategory = 'general';
+
+const catLabels = {
+  general:'Top Stories', technology:'Technology', business:'Business',
+  sports:'Sports', science:'Science', health:'Health', entertainment:'Entertainment'
+};
+
+const sentColors = { Positive:'#d1f0e0', Negative:'#fde8e8', Neutral:'#ede9df' };
+const sentText   = { Positive:'#1a5e38', Negative:'#8b1f1f', Neutral:'#3a3830' };
+
+function skeletons() {
+  return Array(6).fill(0).map(()=>`
+    <div class="skel-card">
+      <div class="skeleton skel-line short"></div>
+      <div class="skeleton skel-line title"></div>
+      <div class="skeleton skel-line title2"></div>
+      <div class="skeleton skel-line"></div>
+      <div class="skeleton skel-line"></div>
+      <div class="skeleton skel-line short"></div>
+    </div>`).join('');
+}
+
+function renderCards(articles) {
+  if (!articles || !articles.length) return '<p style="grid-column:1/-1;text-align:center;color:var(--muted);padding:2rem;">No articles found for this category.</p>';
+  return articles.map((a, i) => `
+    <div class="news-card" style="animation-delay:${i*0.06}s">
+      <div class="card-body">
+        <div class="card-meta">
+          <span class="source-tag">
+            <span class="source-icon"></span>
+            ${a.source || 'News'}
+          </span>
+          <span class="sentiment-tag ${a.sentiment}" style="background:${sentColors[a.sentiment]||'#ede9df'};color:${sentText[a.sentiment]||'#3a3830'}">${a.sentiment}</span>
+        </div>
+        <div class="card-title">${a.title}</div>
+        <div class="card-summary">${a.summary}</div>
+      </div>
+      <div class="card-footer">
+        <span class="cat-pill">${a.category}</span>
+        ${a.url ? `<a href="${a.url}" target="_blank" class="read-link">Read full story →</a>` : ''}
+      </div>
+    </div>`).join('');
+}
+
+async function loadNews(cat) {
+  if (cat) activeCategory = cat;
+  const grid = document.getElementById('news-grid');
+  const errEl = document.getElementById('feed-error');
+  const btn = document.getElementById('refresh-btn');
+  document.getElementById('feed-title').textContent = catLabels[activeCategory] || 'News';
+  grid.innerHTML = skeletons();
+  errEl.style.display = 'none';
+  btn.classList.add('spinning');
+
+  try {
+    const res = await fetch(`${API}/trending?category=${activeCategory}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed');
+    grid.innerHTML = renderCards(data.articles);
+    const t = new Date(data.fetched_at);
+    document.getElementById('last-updated').textContent = 'Updated ' + t.toLocaleTimeString();
+  } catch(e) {
+    grid.innerHTML = '';
+    errEl.style.display = 'block';
+  } finally {
+    btn.classList.remove('spinning');
+  }
+}
+
+// Category tab clicks
+document.getElementById('cat-bar').addEventListener('click', e => {
+  const btn = e.target.closest('.cat-btn');
+  if (!btn) return;
+  document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  loadNews(btn.dataset.cat);
+});
+
+// Summarizer
+function switchTab(t, el) {
+  activeTab = t;
+  document.querySelectorAll('.ptab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tab-body').forEach(x=>x.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-'+t).classList.add('active');
+}
+function setLen(l, el) {
+  activeLen = l;
+  document.querySelectorAll('.pill').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+}
+function showErr(msg) { const e=document.getElementById('err-msg'); e.textContent=msg; e.classList.add('show'); }
+function hideErr() { document.getElementById('err-msg').classList.remove('show'); }
+
+async function doSummarize() {
+  hideErr();
+  document.getElementById('result-box').classList.remove('show');
+  const body = {};
+  if (activeTab==='text') {
+    const t = document.getElementById('article-text').value.trim();
+    if (!t) { showErr('Please paste some article text first.'); return; }
+    body.text = t;
+  } else {
+    const u = document.getElementById('article-url').value.trim();
+    if (!u) { showErr('Please enter a URL.'); return; }
+    body.url = u;
+  }
+  body.summary_length = activeLen;
+  const btn = document.getElementById('go-btn');
+  btn.disabled = true; btn.textContent = 'Summarizing...';
+  try {
+    const res = await fetch(`${API}/summarize`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    const data = await res.json();
+    if (!res.ok) { showErr(data.detail||'Error'); return; }
+    document.getElementById('res-title').textContent = data.title;
+    document.getElementById('res-summary').textContent = data.summary;
+    document.getElementById('res-meta').innerHTML = `<span class="badge">${data.category}</span><span class="badge ${data.sentiment}">${data.sentiment}</span>`;
+    document.getElementById('kp-list').innerHTML = data.key_points.map(p=>`<li><span class="kp-dot"></span>${p}</li>`).join('');
+    document.getElementById('res-time').textContent = 'Processed at '+new Date(data.processed_at).toLocaleTimeString();
+    document.getElementById('res-readtime').textContent = `~${data.read_time_minutes} min read`;
+    document.getElementById('result-box').classList.add('show');
+    document.getElementById('result-box').scrollIntoView({behavior:'smooth',block:'nearest'});
+  } catch(e) {
+    showErr('Could not reach the API. Make sure the server is running.');
+  } finally {
+    btn.disabled=false; btn.innerHTML='<svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg> Summarize';
+  }
+}
+
+// Load on start
+loadNews('general');
+</script>
+</body>
+</html>
